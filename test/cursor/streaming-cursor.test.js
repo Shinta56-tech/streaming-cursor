@@ -22,4 +22,3 @@ while (cursor.hasNext) {
 }
 await cursor.reset();
 console.log("index ", cursor.index);
-

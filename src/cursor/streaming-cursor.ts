@@ -98,8 +98,8 @@ export class StreamingCursor implements ICursor {
   /** The maximum size of the buffer. */
   public bufferSize: number = 50;
 
-  /** The highest index that has been streamed so far. */
-  public streamedMaxIndex: number = -1;
+  /** The maximum index reached during streaming. */
+  public streamingMaxIndex: number = -1;
 
   /** Enables or disables debug mode. */
   public debugMode: boolean = false;
@@ -130,7 +130,7 @@ export class StreamingCursor implements ICursor {
     // Default implementation of reset
     this.reset = async (): Promise<void> => {
       this.index = 0;
-      this.streamedMaxIndex = -1;
+      this.streamingMaxIndex = -1;
     };
   }
 
@@ -139,11 +139,11 @@ export class StreamingCursor implements ICursor {
    * @returns {boolean} True if there is a next item, false otherwise.
    */
   get hasNext(): boolean {
-    if (this.streamedMaxIndex < this.maxIndex) {
+    if (this.streamingMaxIndex < this.maxIndex) {
       if (!this.buffer[this.index]) {
         this.streaming(this.index, true);
       } else {
-        this.streaming(this.streamedMaxIndex + 1);
+        this.streaming(this.streamingMaxIndex + 1);
       }
     }
     return this.index < this.maxIndex;
@@ -161,8 +161,23 @@ export class StreamingCursor implements ICursor {
       if (this.bufferSize < this.maxIndex) {
         this.buffer.drop(index.toString());
       }
-      this.streaming(index + 1, true);
+      this.streaming(this.streamingMaxIndex, true);
     }
+  }
+
+  /**
+   * Checks if the streaming process should stop based on various conditions.
+   * @param {number} index - The current index.
+   * @returns {boolean} True if streaming should stop, false otherwise.
+   */
+  private checkStop(index: number = -1): boolean {
+    return (
+      index >= this.maxIndex || // Index exceeds maxIndex
+      this.streamingMaxIndex >= this.maxIndex - 1 || // Streamed max index exceeds maxIndex
+      this.buffer[index] || // Data already exists in the buffer
+      this.currency >= this.maxConcurrency || // Concurrency limit reached
+      this.buffer.length >= this.bufferSize // Buffer size limit reached
+    );
   }
 
   /**
@@ -171,16 +186,14 @@ export class StreamingCursor implements ICursor {
    * @param {boolean} [advance=false] - Whether to advance the streaming process.
    * @returns {Promise<void>} A promise that resolves when streaming is complete.
    */
-  private async streaming(index: number, advance: boolean = false): Promise<void> {
+  private async streaming(
+    index: number,
+    advance: boolean = false
+  ): Promise<void> {
     let checkFlag = true;
 
     // Check conditions for streaming
-    if (
-      index >= this.maxIndex || // Index exceeds maxIndex
-      this.buffer[index] || // Data already exists in the buffer
-      this.currency >= this.maxConcurrency || // Concurrency limit reached
-      this.buffer.length >= this.bufferSize // Buffer size limit reached
-    ) {
+    if (this.checkStop(index)) {
       if (!advance) {
         return;
       } else {
@@ -191,6 +204,7 @@ export class StreamingCursor implements ICursor {
     // Perform streaming if conditions are met
     if (checkFlag) {
       if (this.debugMode) console.log("streaming ", index);
+      this.streamingMaxIndex = Math.max(this.streamingMaxIndex, index);
       this.currency++;
       this.buffer.set(
         index.toString(),
@@ -202,24 +216,22 @@ export class StreamingCursor implements ICursor {
           })
           .finally(() => {
             this.currency--;
-            this.streamedMaxIndex = Math.max(this.streamedMaxIndex, index);
+            this.streaming(this.streamingMaxIndex, true);
           })
       );
     }
 
     // Advance streaming if required
     if (advance) {
-      if (this.currency >= this.maxConcurrency) return;
-      if (this.buffer.length >= this.bufferSize) return;
+      if (this.checkStop()) return;
       for (let i = index + 1; i < index + this.maxConcurrency; i++) {
-        if (this.currency >= this.maxConcurrency) continue;
-        if (this.buffer.length >= this.bufferSize) continue;
+        if (this.checkStop(i)) continue;
         this.streaming(i);
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
-      if (this.currency >= this.maxConcurrency) return;
-      if (this.buffer.length >= this.bufferSize) return;
-      this.streaming(this.streamedMaxIndex + 1);
+      const nextMaxIndex = this.streamingMaxIndex + 1;
+      if (this.checkStop(nextMaxIndex)) return;
+      this.streaming(nextMaxIndex);
     }
   }
 }
