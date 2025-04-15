@@ -186,10 +186,7 @@ export class StreamingCursor implements ICursor {
    * @param {boolean} [advance=false] - Whether to advance the streaming process.
    * @returns {Promise<void>} A promise that resolves when streaming is complete.
    */
-  private async streaming(
-    index: number,
-    advance: boolean = false
-  ): Promise<void> {
+  private async streaming(index: number, advance: boolean = false): Promise<void> {
     let checkFlag = true;
 
     // Check conditions for streaming
@@ -210,8 +207,7 @@ export class StreamingCursor implements ICursor {
         index.toString(),
         this.getData(index)
           .catch((err) => {
-            console.error(err);
-            this.buffer.drop(index.toString());
+            console.error("streaming error at " + index, err.message);
             return null;
           })
           .finally(() => {
