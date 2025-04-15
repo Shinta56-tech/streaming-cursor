@@ -1,4 +1,4 @@
-# streaming-cursor-ts
+# streaming-cursor
 
 This repository provides a TypeScript-based streaming cursor implementation suitable for handling large datasets in a streaming fashion. Rather than loading all data into memory at once, it processes data in manageable chunks, which is particularly useful for batch operations or real-time data ingestion.
 
