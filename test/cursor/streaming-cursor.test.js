@@ -9,9 +9,9 @@ cursor.getData = async (index) => {
   await new Promise((resolve) => setTimeout(resolve, Math.floor(Math.random() * 5000)));
   return index;
 };
-// リセット時にインデックスを0にする
 cursor.reset = async () => {
   cursor.index = 0;
+  cursor.streamedMaxIndex = -1;
 };
 
 while (cursor.hasNext) {
@@ -21,9 +21,4 @@ while (cursor.hasNext) {
 }
 await cursor.reset();
 console.log("index ", cursor.index);
-while (cursor.hasNext) {
-  const data = await cursor.next();
-  await new Promise((resolve) => setTimeout(resolve, Math.floor(Math.random() * 1000)));
-  console.log("get ", data);
-}
 
